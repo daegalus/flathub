@@ -1,11 +1,12 @@
-app-id          : io.ldtk.LDtk
-base            : org.electronjs.Electron2.BaseApp
-base-version    : "22.08"
-runtime         : org.freedesktop.Platform
-runtime-version : "22.08"
-sdk             : org.freedesktop.Sdk
-command         : ldtk
-separate-locales: false
+app-id               : io.ldtk.LDtk
+base                 : org.electronjs.Electron2.BaseApp
+base-version         : "23.08"
+runtime              : org.freedesktop.Platform
+runtime-version      : "22.08"
+sdk                  : org.freedesktop.Sdk
+command              : ldtk
+rename-icon          : ldtk
+rename-desktop-file  : ldtk
 
 finish-args:
   - --share=ipc
@@ -17,44 +18,45 @@ modules:
     - name          : ldtk
       buildsystem   : simple
       build-commands:
-          - chmod +x "LDtk 1.3.3 installer.AppImage"
-          - ./"LDtk 1.3.3 installer.AppImage" --appimage-extract
-          - rm "LDtk 1.3.3 installer.AppImage"
-          - mv squashfs-root /app/ldtk
-      post-install:
-          # Install icons
-          - install -Dm644
-              /app/ldtk/usr/share/icons/hicolor/16x16/apps/ldtk.png
-              /app/share/icons/hicolor/16x16/apps/$FLATPAK_ID.png
-          - install -Dm644
-              /app/ldtk/usr/share/icons/hicolor/32x32/apps/ldtk.png
-              /app/share/icons/hicolor/32x32/apps/$FLATPAK_ID.png
-          - install -Dm644
-              /app/ldtk/usr/share/icons/hicolor/48x48/apps/ldtk.png
-              /app/share/icons/hicolor/48x48/apps/$FLATPAK_ID.png
-          - install -Dm644
-              /app/ldtk/usr/share/icons/hicolor/64x64/apps/ldtk.png
-              /app/share/icons/hicolor/64x64/apps/$FLATPAK_ID.png
-          - install -Dm644
-              /app/ldtk/usr/share/icons/hicolor/128x128/apps/ldtk.png
-              /app/share/icons/hicolor/128x128/apps/$FLATPAK_ID.png
-          - install -Dm644
-              /app/ldtk/usr/share/icons/hicolor/256x256/apps/ldtk.png
-              /app/share/icons/hicolor/256x256/apps/$FLATPAK_ID.png
-          - install -Dm644
-              /app/ldtk/usr/share/icons/hicolor/512x512/apps/ldtk.png
-              /app/share/icons/hicolor/512x512/apps/$FLATPAK_ID.png
+          - chmod +x LDtk.AppImage
+          - ./LDtk.AppImage --appimage-extract
+          - rm LDtk.AppImage
 
-          - install -Dm644 /app/ldtk/ldtk.desktop /app/share/applications/$FLATPAK_ID.desktop
-          - desktop-file-edit
-             --set-icon $FLATPAK_ID
-             --set-key Exec --set-value "ldtk %f" /app/share/applications/$FLATPAK_ID.desktop
+          - desktop-file-edit --set-icon ${FLATPAK_ID} --set-key Exec --set-value 'ldtk %f' squashfs-root/ldtk.desktop
+          - install -Dm644 squashfs-root/ldtk.desktop ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
+
+          - install -Dm755 ldtk-wrapper.sh ${FLATPAK_DEST}/bin/ldtk
+          - install -Dm644 io.ldtk.LDtk.metainfo.xml ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
+
+          - mkdir -p ${FLATPAK_DEST}/share/icons/hicolor
+          - cp -r squashfs-root/usr/share/icons/hicolor/* ${FLATPAK_DEST}/share/icons/hicolor
+          - rm -rf ${FLATPAK_DEST}/share/icons/hicolor/1024x1024
+
+          - mv squashfs-root ${FLATPAK_DEST}/ldtk
+
+          # To allow separate locales
+          # https://searchfox.org/mozilla-central/rev/8a4f55bc09ffc5c25dcb4586c51ae4a9fee77b4c/taskcluster/docker/firefox-flatpak/runme.sh#131-133
+          - |
+            for lang in ${FLATPAK_DEST}/ldtk/locales/*.pak
+            do
+                locale="$(basename -s .pak $lang)"
+                install -Dm644 -t "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/" "$lang"
+                ln -sf "${FLATPAK_DEST}/share/runtime/locale/${locale%%-*}/$(basename $lang)" "${FLATPAK_DEST}/ldtk/locales/$(basename $lang)"
+            done
+      post-install:
           - install -Dm644 /app/ldtk/usr/share/mime/ldtk.xml /app/share/mime/packages/$FLATPAK_ID.xml
-          - install -m755 ldtk-wrapper.sh /app/bin/ldtk
 
       sources:
           - type  : archive
-            url   : "https://github.com/deepnight/ldtk/releases/download/v1.3.3/ubuntu-distribution.zip"
-            sha512: "e34490b8207b69ff2495c6ca65450d42dc008c1743b565aae9f27eac8babb1d8a050364bafb3ca0d675d1f3eecc7d857db57f563c4bfd1f77c9edbab1cd0008b"
+            only-arches: [x86_64]
+            url   : https://github.com/deepnight/ldtk/releases/download/v1.4.1/ubuntu-distribution.zip
+            sha512: e9d5663b1b68ab68703e9d98b48c90b565aea93c7560d00ae7818426977ee85547a5a35fd49158dd7f6e229f437c46d8ab8fe13c06f521a719499c795b60d0f8
+            dest_filename: LDtk.AppImage
+            x-checker-data:
+              type: json
+              url: https://api.github.com/repos/deepnight/ldtk/releases/latest
+              version-query: '$tag_name | sub("^[vV]"; "")'
+              url-query: '.assets[] | select(.name=="ubuntu-distribution.zip") | .browser_download_url'
+              timestamp-query: '.published_at'
           - type: file
             path: ldtk-wrapper.sh
